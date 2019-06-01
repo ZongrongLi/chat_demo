@@ -12,14 +12,12 @@ import (
 
 func readPackage(conn net.Conn) (msg proto.Message, err error) {
 	buff := make([]byte, 100)
-	fmt.Println(11)
 	n, err := conn.Read([]byte(buff[0:4]))
 
 	if err != nil {
 		fmt.Println("write data  failed")
 		return
 	}
-	fmt.Println(12)
 	packLen := binary.BigEndian.Uint32(buff[0:4])
 
 	n, err = conn.Read([]byte(buff[0:packLen]))
@@ -28,13 +26,11 @@ func readPackage(conn net.Conn) (msg proto.Message, err error) {
 		fmt.Println("write data  failed")
 		return
 	}
-	fmt.Println(13)
 	if n != int(packLen) {
 		fmt.Println("read data  not finished", n, packLen)
 		err = errors.New("read data not fninshed")
 		return
 	}
-	fmt.Println(14)
 
 	//	fmt.Println("data:", string(buff[0:packLen]))
 	msg = proto.Message{}
@@ -43,7 +39,6 @@ func readPackage(conn net.Conn) (msg proto.Message, err error) {
 		err = errors.New("msg data Unmarshal failed")
 		return
 	}
-	fmt.Println(15)
 	return
 
 }
@@ -75,14 +70,12 @@ func writePackage(conn net.Conn, data []byte) {
 
 func Login(msg proto.Message) {
 
-	fmt.Println(2)
 	cmd := proto.LoginCmd{}
 	err := json.Unmarshal([]byte(msg.Data), &cmd)
 	if err != nil {
 		fmt.Println("unmarshal failed: ", msg.Data)
 		return
 	}
-	fmt.Println(3)
 
 	fmt.Println("login: ", cmd)
 }
@@ -92,12 +85,12 @@ func Register(msg proto.Message) {
 	reg := proto.RegisterCmd{}
 	err := json.Unmarshal([]byte(msg.Data), &reg)
 	if err != nil {
-		fmt.Println("unmarshal failed: ", msg.Data)
+		fmt.Println("unmarshal failed: ", err)
 
 		return
 	}
 
-	fmt.Println("login: ", reg)
+	fmt.Println("register: ", reg)
 }
 
 func LoginResp(conn net.Conn, code int, Error string) (err error) {
@@ -130,7 +123,16 @@ func process(conn net.Conn) {
 		fmt.Println("readPackage: ", err)
 		return
 	}
-	Login(msg)
+
+	switch msg.Cmd {
+	case proto.UserLogin:
+		Login(msg)
+	case proto.UserRegister:
+		Register(msg)
+	default:
+		fmt.Println("unkown cmd")
+		return
+	}
 	err = LoginResp(conn, 10, "no error")
 	if err != nil {
 		fmt.Println("Error LoginResp", err.Error())
