@@ -6,12 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
+	"github.com/tiancai110a/chat_demo/errno"
+	_ "github.com/tiancai110a/chat_demo/errno"
 	proto "github.com/tiancai110a/chat_demo/proto"
 )
 
+var mgr *UserMgr
+
+func init() {
+	initRedis("localhost:6379", 16, 1024, time.Second*300)
+	mgr = NewUserMgr(pool)
+}
+
 func readPackage(conn net.Conn) (msg proto.Message, err error) {
-	buff := make([]byte, 100)
+	buff := make([]byte, 1024)
 	n, err := conn.Read([]byte(buff[0:4]))
 
 	if err != nil {
@@ -68,35 +78,49 @@ func writePackage(conn net.Conn, data []byte) {
 
 }
 
-func Login(msg proto.Message) {
-
+func Login(msg proto.Message) (err error) {
 	cmd := proto.LoginCmd{}
-	err := json.Unmarshal([]byte(msg.Data), &cmd)
+	err = json.Unmarshal([]byte(msg.Data), &cmd)
 	if err != nil {
 		fmt.Println("unmarshal failed: ", msg.Data)
 		return
 	}
 
 	fmt.Println("login: ", cmd)
+
+	u, err := mgr.Login(cmd.Id, cmd.Passwd)
+	fmt.Println(u)
+	return
 }
 
-func Register(msg proto.Message) {
+func Register(msg proto.Message) (err error) {
 
 	reg := proto.RegisterCmd{}
-	err := json.Unmarshal([]byte(msg.Data), &reg)
+	err = json.Unmarshal([]byte(msg.Data), &reg)
 	if err != nil {
 		fmt.Println("unmarshal failed: ", err)
-
 		return
 	}
-
+	fmt.Println("regist data", reg.User)
+	err = mgr.Register(&reg.User)
 	fmt.Println("register: ", reg)
+	return
 }
 
-func LoginResp(conn net.Conn, code int, Error string) (err error) {
+func LoginResp(conn net.Conn, err error) {
 	lc := proto.LoginCmdRes{}
-	lc.Code = code
-	lc.Error = Error
+	if err != nil {
+		if errnum, ok := err.(errno.Errno); !ok {
+			lc.Code = -1
+		} else {
+			lc.Code = errnum.Code
+		}
+
+		lc.Error = err.Error()
+	} else {
+		lc.Code = errno.OK.Code
+		lc.Error = errno.OK.Message
+	}
 	data, err := json.Marshal(lc)
 	if err != nil {
 		return
@@ -119,6 +143,10 @@ func LoginResp(conn net.Conn, code int, Error string) (err error) {
 func process(conn net.Conn) {
 	defer conn.Close()
 	msg, err := readPackage(conn)
+	defer func() {
+		LoginResp(conn, err)
+	}()
+
 	if err != nil {
 		fmt.Println("readPackage: ", err)
 		return
@@ -126,19 +154,13 @@ func process(conn net.Conn) {
 
 	switch msg.Cmd {
 	case proto.UserLogin:
-		Login(msg)
+		err = Login(msg)
 	case proto.UserRegister:
-		Register(msg)
+		err = Register(msg)
 	default:
 		fmt.Println("unkown cmd")
 		return
 	}
-	err = LoginResp(conn, 10, "no error")
-	if err != nil {
-		fmt.Println("Error LoginResp", err.Error())
-		return
-	}
-	//writePackage(conn, []byte("hello world"))
 
 }
 
@@ -157,6 +179,5 @@ func main() {
 			fmt.Println("accept failed, ", err)
 			continue
 		}
-
 	}
 }

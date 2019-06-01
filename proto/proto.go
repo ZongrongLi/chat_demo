@@ -1,5 +1,7 @@
 package proto
 
+import "github.com/tiancai110a/chat_demo/model"
+
 type command byte
 
 const (
@@ -19,7 +21,7 @@ type LoginCmd struct {
 }
 
 type RegisterCmd struct {
-	User int `json:"user"`
+	User model.User `json:"user"`
 }
 
 type LoginCmdRes struct {

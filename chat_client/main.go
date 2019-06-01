@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"net"
 
+	model "github.com/tiancai110a/chat_demo/model"
 	proto "github.com/tiancai110a/chat_demo/proto"
 )
 
 func readPackage(conn net.Conn) (msg proto.Message, err error) {
-	buff := make([]byte, 100)
+	buff := make([]byte, 1024)
 
 	n, err := conn.Read([]byte(buff[0:4]))
 
@@ -96,10 +97,10 @@ func Login(conn net.Conn, id int, passwd string) (err error) {
 
 }
 
-func Register(conn net.Conn, id int, passwd string) (err error) {
+func Register(conn net.Conn, user model.User) (err error) {
 
 	reg := proto.RegisterCmd{}
-	reg.User = 10
+	reg.User = user
 
 	data, err := json.Marshal(reg)
 	if err != nil {
@@ -146,12 +147,15 @@ func main() {
 		fmt.Println("Error dialing", err.Error())
 		return
 	}
-	err = Register(conn, 2, "passwd")
+
+	//user := model.User{UserId: 1, Passwd: "tiancai110a"}
+
+	//err = Register(conn, user)
+	err = Login(conn, 1, "tiancai110a")
 	if err != nil {
 		fmt.Println("Error Login", err.Error())
 		return
 	}
 
 	GetResp(conn)
-
 }
