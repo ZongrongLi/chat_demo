@@ -98,9 +98,9 @@ func Login(conn net.Conn, id int, passwd string) (err error) {
 
 func Register(conn net.Conn, id int, passwd string) (err error) {
 
-	reg := proto.LoginCmd{}
-	reg.Passwd = passwd
-	reg.Id = id
+	reg := proto.RegisterCmd{}
+	reg.User = 10
+
 	data, err := json.Marshal(reg)
 	if err != nil {
 		return
@@ -146,7 +146,7 @@ func main() {
 		fmt.Println("Error dialing", err.Error())
 		return
 	}
-	err = Login(conn, 1, "passwd")
+	err = Register(conn, 2, "passwd")
 	if err != nil {
 		fmt.Println("Error Login", err.Error())
 		return
