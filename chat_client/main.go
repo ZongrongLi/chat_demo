@@ -1,75 +1,16 @@
 package main
 
 import (
-	"encoding/binary"
 	"encoding/json"
-	"errors"
+	"flag"
 	"fmt"
 	"net"
+	"time"
 
 	model "github.com/tiancai110a/chat_demo/model"
 	proto "github.com/tiancai110a/chat_demo/proto"
+	"github.com/tiancai110a/chat_demo/transport"
 )
-
-func readPackage(conn net.Conn) (msg proto.Message, err error) {
-	buff := make([]byte, 1024)
-
-	n, err := conn.Read([]byte(buff[0:4]))
-
-	if err != nil {
-		fmt.Println("write data  failed")
-		return
-	}
-	packLen := binary.BigEndian.Uint32(buff[0:4])
-
-	n, err = conn.Read([]byte(buff[0:packLen]))
-
-	if err != nil {
-		fmt.Println("write data  failed")
-		return
-	}
-
-	if n != int(packLen) {
-		fmt.Println("read data  not finished", n, packLen)
-		err = errors.New("read data not fninshed")
-		return
-	}
-
-	//	fmt.Println("data:", string(buff[0:packLen]))
-	msg = proto.Message{}
-	err = json.Unmarshal(buff[0:packLen], &msg)
-	if err != nil {
-		err = errors.New("msg data Unmarshal failed")
-		return
-	}
-	return
-
-}
-
-func writePackage(conn net.Conn, data []byte) {
-	buff := make([]byte, 4)
-	packLen := uint32(len(data))
-
-	binary.BigEndian.PutUint32(buff[0:4], packLen)
-	n, err := conn.Write(buff)
-	if err != nil {
-		fmt.Println("write data  failed")
-		return
-	}
-	n, err = conn.Write(data)
-
-	if err != nil {
-		fmt.Println("write data  failed")
-		return
-	}
-
-	if n != int(packLen) {
-		fmt.Println("write data  not finished")
-		err = errors.New("write data not fninshed")
-		return
-	}
-
-}
 
 func Login(conn net.Conn, id int, passwd string) (err error) {
 
@@ -87,12 +28,7 @@ func Login(conn net.Conn, id int, passwd string) (err error) {
 	msg.Cmd = proto.UserLogin
 	msg.Data = data
 
-	msgdata, err := json.Marshal(msg)
-	if err != nil {
-		fmt.Println("msg Marshal failed: ", err)
-		return
-	}
-	writePackage(conn, msgdata)
+	transport.SendMessage(conn, msg)
 	return
 
 }
@@ -112,35 +48,78 @@ func Register(conn net.Conn, user model.User) (err error) {
 	msg.Cmd = proto.UserRegister
 	msg.Data = data
 
-	msgdata, err := json.Marshal(msg)
+	transport.SendMessage(conn, msg)
+	return
+}
+
+func GetList(conn net.Conn, userid int) (err error) {
+
+	req := proto.UserListReq{UserId: userid}
+
+	data, err := json.Marshal(req)
 	if err != nil {
-		fmt.Println("msg Marshal failed: ", err)
 		return
 	}
-	writePackage(conn, msgdata)
-	return
+	fmt.Println("data: ", data)
 
+	msg := proto.Message{}
+	msg.Cmd = proto.UserRegister
+	msg.Data = data
+
+	transport.SendMessage(conn, msg)
+	return
 }
 
 func GetResp(conn net.Conn) {
-	msg, err := readPackage(conn)
-	fmt.Println("data len: ", len(msg.Data))
 
-	if err != nil {
-		fmt.Println("login read data  failed")
-		return
-	}
-	lc := proto.LoginCmdRes{}
-	err = json.Unmarshal([]byte(msg.Data), &lc)
-	if err != nil {
-		fmt.Println("unmarshal failed: ", lc)
-		return
+	var err error
+begin:
+	for err == nil {
+		msg, err := transport.ReadPackage(conn)
+		fmt.Println("data len: ", len(msg.Data))
+
+		if err != nil {
+			fmt.Println("login read data  failed")
+			break begin
+		}
+
+		switch msg.Cmd {
+		case proto.UserLogin:
+		case proto.UserLoginRes:
+			lc := proto.LoginCmdRes{}
+			err = json.Unmarshal([]byte(msg.Data), &lc)
+			if err != nil {
+				fmt.Println("unmarshal failed: ", lc)
+				break begin
+			}
+			fmt.Println("resp: ", lc)
+		case proto.UserRegister:
+		case proto.UserNotifyStatus:
+			lc := proto.UserStatusNotify{}
+			err = json.Unmarshal([]byte(msg.Data), &lc)
+			if err != nil {
+				fmt.Println("unmarshal failed: ", lc)
+				break begin
+			}
+			fmt.Println("notify: ", lc)
+		case proto.DefaultRes:
+			fmt.Println("Register: ", msg)
+
+		default:
+			break
+		}
 	}
 
-	fmt.Println("resp: ", lc)
 }
 
 func main() {
+	var userid int
+	var passswd string
+	flag.IntVar(&userid, "u", 1, "please input conf path")
+	flag.StringVar(&passswd, "p", "", "please input log level")
+
+	flag.Parse()
+
 	conn, err := net.Dial("tcp", "localhost:10000")
 
 	if err != nil {
@@ -148,14 +127,18 @@ func main() {
 		return
 	}
 
-	//user := model.User{UserId: 1, Passwd: "tiancai110a"}
+	// user := model.User{UserId: 2, Passwd: "12345678"}
 
-	//err = Register(conn, user)
-	err = Login(conn, 1, "tiancai110a")
+	// err = Register(conn, user)
+	err = Login(conn, userid, passswd)
 	if err != nil {
 		fmt.Println("Error Login", err.Error())
 		return
 	}
 
-	GetResp(conn)
+	go func() {
+		GetResp(conn)
+	}()
+
+	time.Sleep(1000 * time.Second)
 }

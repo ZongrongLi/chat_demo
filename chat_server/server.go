@@ -5,24 +5,30 @@ import (
 	"net"
 
 	proto "github.com/tiancai110a/chat_demo/proto"
+	"github.com/tiancai110a/chat_demo/transport"
 )
 
 func process(conn net.Conn) {
-	cli := client{}
-	defer conn.Close()
-	msg, err := readPackage(conn)
+	cli := client{conn: conn}
+	//defer conn.Close()
+	var data []byte
+
+	msg, err := transport.ReadPackage(conn)
+	command := proto.DefaultRes
 	defer func() {
-		cli.LoginResp(conn, err)
+		cli.sendResp(conn, command, data, err)
 	}()
 
 	if err != nil {
 		fmt.Println("readPackage: ", err)
+
+		conn.Close()
 		return
 	}
-
 	switch msg.Cmd {
 	case proto.UserLogin:
-		err = cli.Login(msg)
+		command = proto.UserLoginRes
+		data, err = cli.Login(msg)
 	case proto.UserRegister:
 		err = cli.Register(msg)
 	default:

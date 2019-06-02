@@ -67,10 +67,12 @@ func (u *UserMgr) Register(user *model.User) (err error) {
 	_, err = u.GetUser(user.UserId)
 	if err == nil {
 		err = errno.ErrUserExist
+		fmt.Println("id already exist")
 		return
 	}
 
 	if err != errno.ErrUserNotExist {
+		fmt.Println("register err: ", err)
 		return
 	}
 

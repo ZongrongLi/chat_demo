@@ -2,17 +2,31 @@ package proto
 
 import "github.com/tiancai110a/chat_demo/model"
 
-type command byte
+type Command byte
 
 const (
-	UserLogin command = iota
+	DefaultRes Command = iota
+	UserLogin
 	UserLoginRes
 	UserRegister
+	UserNotifyStatus
 )
 
+type UserStatus byte
+
+const (
+	UserOnline = iota
+	UserOffline
+)
+
+type Base struct {
+	Code  int    `json:"code"`
+	Error string `json:"error"`
+}
 type Message struct {
-	Cmd  command `json:"cmd"`
+	Cmd  Command `json:"cmd"`
 	Data []byte  `json:"data"`
+	Base
 }
 
 type LoginCmd struct {
@@ -25,6 +39,14 @@ type RegisterCmd struct {
 }
 
 type LoginCmdRes struct {
-	Code  int    `json:"code"`
-	Error string `json:"error"`
+	Users []int `json:"users"`
+}
+
+type UserStatusNotify struct {
+	Userid int        `json:"userid"`
+	Status UserStatus `json:"status"`
+}
+
+type UserListReq struct {
+	UserId int `json:"userid"`
 }
